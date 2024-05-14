@@ -1,16 +1,28 @@
+import os
 import json
+import hashlib
+import getpass
+import platform
+import winreg
+import psutil
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives import hashes, serialization
 
 DATA_FILE = 'users.json'
+
+
 def load_users():
     try:
         with open(DATA_FILE, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-
         return {'ADMIN': {'password': 'admin', 'locked': False, 'restrictions': False}}
+
+
 def save_users(users):
     with open(DATA_FILE, 'w') as file:
         json.dump(users, file, indent=4)
+
 
 def validate_password(password, username, restrictions):
     if restrictions:
@@ -19,6 +31,38 @@ def validate_password(password, username, restrictions):
         has_digit = any(c.isdigit() for c in password)
         return has_latin and has_cyrillic and has_digit
     return True
+
+
+def gather_computer_info():
+    user_name = getpass.getuser()
+    computer_name = platform.node()
+    windows_folder = os.getenv('WINDIR')
+    system_folder = os.getenv('SYSTEMROOT')
+    disk_info = psutil.disk_usage('/')
+    memory_size = disk_info.total
+
+    info = f"{user_name}|{computer_name}|{windows_folder}|{system_folder}|{memory_size}"
+    return info
+
+
+def hash_info(info):
+    return hashlib.sha256(info.encode()).hexdigest()
+
+
+def verify_signature(info, signature, public_key):
+    try:
+        public_key.verify(
+            signature,
+            info.encode(),
+            padding.PSS(mgf=padding.MGF1(hashes.SHA256()), salt_length=padding.PSS.MAX_LENGTH),
+            hashes.SHA256()
+        )
+        return True
+    except Exception as e:
+        print(f"Ошибка проверки подписи: {e}")
+        return False
+
+
 def admin_mode(users):
     while True:
         choice = input(
@@ -90,6 +134,32 @@ def user_mode(user, users):
 
 def main():
     users = load_users()
+
+    # Собираем информацию о компьютере
+    computer_info = gather_computer_info()
+
+    # Хешируем информацию
+    hashed_info = hash_info(computer_info)
+
+    # Читаем подпись из реестра
+    try:
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Student_Name')
+        signature, _ = winreg.QueryValueEx(key, 'Signature')
+        winreg.CloseKey(key)
+    except FileNotFoundError:
+        print("Подпись не найдена в реестре.")
+        return
+
+    # Загружаем публичный ключ
+    with open('public_key.pem', 'rb') as f:
+        public_key_pem = f.read()
+    public_key = serialization.load_pem_public_key(public_key_pem)
+
+    # Проверяем подпись
+    if not verify_signature(hashed_info, signature, public_key):
+        print("Проверка подписи не пройдена. Работа программы завершена.")
+        return
+
     while True:
         username = input("Ім'я користувача (або 'вийти' для завершення): ")
         if username.lower() == 'вийти':
