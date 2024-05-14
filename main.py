@@ -1,19 +1,13 @@
 import json
-from hashlib import sha256
 
-# Configuration file for saving user data
 DATA_FILE = 'users.json'
-
-
 def load_users():
     try:
         with open(DATA_FILE, 'r') as file:
             return json.load(file)
     except FileNotFoundError:
-        # Create a file with default admin data
 
         return {'ADMIN': {'password': 'admin', 'locked': False, 'restrictions': False}}
-
 def save_users(users):
     with open(DATA_FILE, 'w') as file:
         json.dump(users, file, indent=4)
@@ -25,10 +19,10 @@ def validate_password(password, username, restrictions):
         has_digit = any(c.isdigit() for c in password)
         return has_latin and has_cyrillic and has_digit
     return True
-
 def admin_mode(users):
     while True:
-        choice = input("1. Змінити пароль\n2. Перегляд користувачів\n3. Додати користувача\n4. Блокування користувача\n5. Змінити обмеження пароля\n6. Вийти\nВаш вибір: ")
+        choice = input(
+            "1. Змінити пароль\n2. Перегляд користувачів\n3. Додати користувача\n4. Блокування користувача\n5. Змінити обмеження пароля\n6. Вийти\nВаш вибір: ")
         if choice == '1':
             old_password = input("Введіть старий пароль: ")
             if users['ADMIN']['password'] == old_password:
@@ -72,15 +66,17 @@ def admin_mode(users):
         elif choice == '6':
             break
 
+
 def user_mode(user, users):
     while True:
         choice = input("1. Змінити пароль\n2. Вийти\nВаш вибір: ")
         if choice == '1':
             old_password = input("Введіть старий пароль: ")
-            if users[user]['password'] ==old_password:
+            if users[user]['password'] == old_password:
                 new_password = input("Введіть новий пароль: ")
                 confirm_password = input("Підтвердіть новий пароль: ")
-                if new_password == confirm_password and validate_password(new_password, user, users[user]['restrictions']):
+                if new_password == confirm_password and validate_password(new_password, user,
+                                                                          users[user]['restrictions']):
                     users[user]['password'] = new_password
                     save_users(users)
                     print("Пароль успішно змінено.")
@@ -91,13 +87,14 @@ def user_mode(user, users):
         elif choice == '2':
             break
 
+
 def main():
     users = load_users()
     while True:
         username = input("Ім'я користувача (або 'вийти' для завершення): ")
         if username.lower() == 'вийти':
             break
-        username = username.upper()  # Standardize to upper case
+        username = username.upper()
         if username in users:
             if users[username]['locked']:
                 print("Обліковий запис заблокований.")
@@ -119,6 +116,7 @@ def main():
                 break
         else:
             print("Користувач не знайдений. Спробуйте ще раз або зареєструйтеся як ADMIN.")
+
 
 if __name__ == '__main__':
     main()
