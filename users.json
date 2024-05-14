@@ -1,0 +1,22 @@
+{
+    "ADMIN": {
+        "password": "1",
+        "locked": false,
+        "restrictions": false
+    },
+    "john_doe": {
+        "password": "john123",
+        "locked": true,
+        "restrictions": true
+    },
+    "jane_smith": {
+        "password": "jane2024",
+        "locked": true,
+        "restrictions": false
+    },
+    "amogus": {
+        "password": "",
+        "locked": false,
+        "restrictions": false
+    }
+}
