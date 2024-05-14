@@ -7,22 +7,63 @@ import winreg
 import psutil
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+import base64
 
 DATA_FILE = 'users.json'
-
+TEMP_FILE = 'temp_users.json'
 
 def load_users():
     try:
-        with open(DATA_FILE, 'r') as file:
-            return json.load(file)
+        with open(TEMP_FILE, 'r') as file:
+            data = file.read()
+            if not data.strip():
+                raise ValueError("Файл пустой или содержит только пробелы.")
+            return json.loads(data)
     except FileNotFoundError:
         return {'ADMIN': {'password': 'admin', 'locked': False, 'restrictions': False}}
-
+    except ValueError as e:
+        print(f"Ошибка загрузки пользователей: {e}")
+        return {'ADMIN': {'password': 'admin', 'locked': False, 'restrictions': False}}
 
 def save_users(users):
-    with open(DATA_FILE, 'w') as file:
+    with open(TEMP_FILE, 'w') as file:
         json.dump(users, file, indent=4)
 
+def encrypt_data(data, password):
+    backend = default_backend()
+    salt = os.urandom(16)
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=backend
+    )
+    key = kdf.derive(password.encode())
+    iv = os.urandom(16)
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=backend)
+    encryptor = cipher.encryptor()
+    encrypted_data = encryptor.update(data) + encryptor.finalize()
+    return base64.b64encode(salt + iv + encrypted_data)
+
+def decrypt_data(encrypted_data, password):
+    backend = default_backend()
+    encrypted_data = base64.b64decode(encrypted_data)
+    salt, iv, encrypted_data = encrypted_data[:16], encrypted_data[16:32], encrypted_data[32:]
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=backend
+    )
+    key = kdf.derive(password.encode())
+    cipher = Cipher(algorithms.AES(key), modes.CFB(iv), backend=backend)
+    decryptor = cipher.decryptor()
+    return decryptor.update(encrypted_data) + decryptor.finalize()
 
 def validate_password(password, username, restrictions):
     if restrictions:
@@ -31,7 +72,6 @@ def validate_password(password, username, restrictions):
         has_digit = any(c.isdigit() for c in password)
         return has_latin and has_cyrillic and has_digit
     return True
-
 
 def gather_computer_info():
     user_name = getpass.getuser()
@@ -44,10 +84,8 @@ def gather_computer_info():
     info = f"{user_name}|{computer_name}|{windows_folder}|{system_folder}|{memory_size}"
     return info
 
-
 def hash_info(info):
     return hashlib.sha256(info.encode()).hexdigest()
-
 
 def verify_signature(info, signature, public_key):
     try:
@@ -61,7 +99,6 @@ def verify_signature(info, signature, public_key):
     except Exception as e:
         print(f"Ошибка проверки подписи: {e}")
         return False
-
 
 def admin_mode(users):
     while True:
@@ -110,7 +147,6 @@ def admin_mode(users):
         elif choice == '6':
             break
 
-
 def user_mode(user, users):
     while True:
         choice = input("1. Змінити пароль\n2. Вийти\nВаш вибір: ")
@@ -119,8 +155,7 @@ def user_mode(user, users):
             if users[user]['password'] == old_password:
                 new_password = input("Введіть новий пароль: ")
                 confirm_password = input("Підтвердіть новий пароль: ")
-                if new_password == confirm_password and validate_password(new_password, user,
-                                                                          users[user]['restrictions']):
+                if new_password == confirm_password and validate_password(new_password, user, users[user]['restrictions']):
                     users[user]['password'] = new_password
                     save_users(users)
                     print("Пароль успішно змінено.")
@@ -131,34 +166,91 @@ def user_mode(user, users):
         elif choice == '2':
             break
 
-
 def main():
-    users = load_users()
-
     # Собираем информацию о компьютере
-    computer_info = gather_computer_info()
+    try:
+        computer_info = gather_computer_info()
+        print(f"Информация о компьютере собрана: {computer_info}")
+    except Exception as e:
+        print(f"Ошибка сбора информации о компьютере: {e}")
+        return
 
     # Хешируем информацию
-    hashed_info = hash_info(computer_info)
+    try:
+        hashed_info = hash_info(computer_info)
+        print(f"Информация захеширована: {hashed_info}")
+    except Exception as e:
+        print(f"Ошибка хеширования информации: {e}")
+        return
 
     # Читаем подпись из реестра
     try:
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Student_Name')
         signature, _ = winreg.QueryValueEx(key, 'Signature')
+        encrypted_passphrase, _ = winreg.QueryValueEx(key, 'Passphrase')
         winreg.CloseKey(key)
+        print("Подпись и парольная фраза успешно считаны из реестра.")
     except FileNotFoundError:
-        print("Подпись не найдена в реестре.")
+        print("Подпись или парольная фраза не найдены в реестре.")
+        return
+    except Exception as e:
+        print(f"Ошибка при чтении из реестра: {e}")
         return
 
     # Загружаем публичный ключ
-    with open('public_key.pem', 'rb') as f:
-        public_key_pem = f.read()
-    public_key = serialization.load_pem_public_key(public_key_pem)
+    try:
+        with open('public_key.pem', 'rb') as f:
+            public_key_pem = f.read()
+        public_key = serialization.load_pem_public_key(public_key_pem)
+        print("Публичный ключ успешно загружен.")
+    except Exception as e:
+        print(f"Ошибка загрузки публичного ключа: {e}")
+        return
 
     # Проверяем подпись
-    if not verify_signature(hashed_info, signature, public_key):
-        print("Проверка подписи не пройдена. Работа программы завершена.")
+    try:
+        if not verify_signature(hashed_info, signature, public_key):
+            print("Проверка подписи не пройдена. Работа программы завершена.")
+            return
+        print("Подпись успешно проверена.")
+    except Exception as e:
+        print(f"Ошибка проверки подписи: {e}")
         return
+
+    # Запрашиваем парольную фразу для расшифровки файла с учетными данными
+    try:
+        master_key = 'some_master_key'
+        passphrase = decrypt_data(encrypted_passphrase, master_key).decode()
+        print("Парольная фраза успешно расшифрована.")
+    except Exception as e:
+        print(f"Ошибка расшифровки парольной фразы: {e}")
+        return
+
+    # Расшифровываем файл с учетными данными
+    try:
+        with open(DATA_FILE, 'rb') as file:
+            encrypted_data = file.read()
+        decrypted_data = decrypt_data(encrypted_data, passphrase)
+        with open(TEMP_FILE, 'wb') as temp_file:
+            temp_file.write(decrypted_data)
+        print("Файл с учетными данными успешно расшифрован.")
+    except Exception as e:
+        print(f"Ошибка при расшифровке файла: {e}")
+        return
+
+    # Проверяем содержимое расшифрованного файла
+    try:
+        with open(TEMP_FILE, 'r') as file:
+            data = file.read()
+            if not data.strip():
+                print("Внимание: файл с учетными данными пуст.")
+            else:
+                print(f"Содержимое расшифрованного файла: {data}")
+    except Exception as e:
+        print(f"Ошибка при чтении расшифрованного файла: {e}")
+        return
+
+    users = load_users()
 
     while True:
         username = input("Ім'я користувача (або 'вийти' для завершення): ")
@@ -187,6 +279,17 @@ def main():
         else:
             print("Користувач не знайдений. Спробуйте ще раз або зареєструйтеся як ADMIN.")
 
+    # Шифруем файл с учетными данными перед выходом
+    try:
+        with open(TEMP_FILE, 'rb') as temp_file:
+            data_to_encrypt = temp_file.read()
+        encrypted_data = encrypt_data(data_to_encrypt, passphrase)
+        with open(DATA_FILE, 'wb') as file:
+            file.write(encrypted_data)
+        os.remove(TEMP_FILE)
+        print("Файл с учетными данными успешно зашифрован.")
+    except Exception as e:
+        print(f"Ошибка при шифровании файла: {e}")
 
 if __name__ == '__main__':
     main()
