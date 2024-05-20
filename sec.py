@@ -40,7 +40,7 @@ def sign_info(info, private_key):
 
 def write_to_registry(signature, encrypted_passphrase):
     try:
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Student_Name')
+        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Nikita_Zakharenko')
         winreg.SetValueEx(key, 'Signature', 0, winreg.REG_BINARY, signature)
         winreg.SetValueEx(key, 'Passphrase', 0, winreg.REG_BINARY, encrypted_passphrase)
         winreg.CloseKey(key)

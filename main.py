@@ -185,7 +185,7 @@ def main():
 
     # Читаем подпись из реестра
     try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Student_Name')
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Nikita_Zakharenko')
         signature, _ = winreg.QueryValueEx(key, 'Signature')
         encrypted_passphrase, _ = winreg.QueryValueEx(key, 'Passphrase')
         winreg.CloseKey(key)
