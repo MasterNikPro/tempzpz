@@ -5,7 +5,7 @@ import getpass
 import platform
 import winreg
 import psutil
-from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.backends import default_backend
@@ -17,7 +17,7 @@ TEMP_FILE = 'temp_users.json'
 
 def load_users():
     try:
-        with open(TEMP_FILE, 'r') as file:
+        with open(TEMP_FILE, 'r', encoding='latin-1') as file:
             data = file.read()
             if not data.strip():
                 raise ValueError("Файл пустой или содержит только пробелы.")
@@ -29,7 +29,7 @@ def load_users():
         return {'ADMIN': {'password': 'admin', 'locked': False, 'restrictions': False}}
 
 def save_users(users):
-    with open(TEMP_FILE, 'w') as file:
+    with open(TEMP_FILE, 'w', encoding='utf-8') as file:
         json.dump(users, file, indent=4)
 
 def encrypt_data(data, password):
@@ -70,7 +70,7 @@ def validate_password(password, username, restrictions):
         has_latin = any(c.isalpha() and c.isascii() for c in password)
         has_cyrillic = any('а' <= c.lower() <= 'я' for c in password)
         has_digit = any(c.isdigit() for c in password)
-        return has_latin and has_cyrillic and has_digit
+        return has_latin, has_cyrillic, has_digit
     return True
 
 def gather_computer_info():
@@ -155,7 +155,7 @@ def user_mode(user, users):
             if users[user]['password'] == old_password:
                 new_password = input("Введіть новий пароль: ")
                 confirm_password = input("Підтвердіть новий пароль: ")
-                if new_password == confirm_password and validate_password(new_password, user, users[user]['restrictions']):
+                if new_password == confirm_password and validate_password(new_password, user, users[user]['restrictions'] ):
                     users[user]['password'] = new_password
                     save_users(users)
                     print("Пароль успішно змінено.")
@@ -185,7 +185,7 @@ def main():
 
     # Читаем подпись из реестра
     try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Student_Name')
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, r'Software\Nikita_Zakharenko')
         signature, _ = winreg.QueryValueEx(key, 'Signature')
         encrypted_passphrase, _ = winreg.QueryValueEx(key, 'Passphrase')
         winreg.CloseKey(key)
@@ -220,7 +220,7 @@ def main():
     # Запрашиваем парольную фразу для расшифровки файла с учетными данными
     try:
         master_key = 'some_master_key'
-        passphrase = decrypt_data(encrypted_passphrase, master_key).decode()
+        passphrase = decrypt_data(encrypted_passphrase, master_key).decode('latin-1')
         print("Парольная фраза успешно расшифрована.")
     except Exception as e:
         print(f"Ошибка расшифровки парольной фразы: {e}")
@@ -240,7 +240,7 @@ def main():
 
     # Проверяем содержимое расшифрованного файла
     try:
-        with open(TEMP_FILE, 'r') as file:
+        with open(TEMP_FILE, 'r', encoding='latin-1') as file:
             data = file.read()
             if not data.strip():
                 print("Внимание: файл с учетными данными пуст.")

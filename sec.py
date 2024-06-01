@@ -40,13 +40,13 @@ def sign_info(info, private_key):
 
 def write_to_registry(signature, encrypted_passphrase):
     try:
-        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Student_Name')
+        key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r'Software\Nikita_Zakharenko')
         winreg.SetValueEx(key, 'Signature', 0, winreg.REG_BINARY, signature)
         winreg.SetValueEx(key, 'Passphrase', 0, winreg.REG_BINARY, encrypted_passphrase)
         winreg.CloseKey(key)
-        print("Подпись и парольная фраза успешно записаны в реестр.")
+        print("Підпис та парольна фраза успішно записані до реєстру.")
     except Exception as e:
-        print(f"Ошибка при записи в реестр: {e}")
+        print(f"Помилка при запису до реєстру: {e}")
 
 def encrypt_data(data, password):
     backend = default_backend()
@@ -67,74 +67,74 @@ def encrypt_data(data, password):
 
 def main():
     try:
-        install_path = input("Введите папку для установки защищаемой программы: ")
+        install_path = input("Введіть папку для встановлення захищеної програми: ")
         os.makedirs(install_path, exist_ok=True)
-        print(f"Папка '{install_path}' успешно создана.")
+        print(f"Папка '{install_path}' успішно створена.")
     except Exception as e:
-        print(f"Ошибка создания папки: {e}")
+        print(f"Помилка створення папки: {e}")
         return
 
     try:
-        # Собираем информацию о компьютере
+        # Збираємо інформацію про комп'ютер
         computer_info = gather_computer_info()
-        print(f"Информация о компьютере собрана: {computer_info}")
+        print(f"Інформацію про комп'ютер зібрано: {computer_info}")
     except Exception as e:
-        print(f"Ошибка сбора информации о компьютере: {e}")
+        print(f"Помилка збору інформації про комп'ютер: {e}")
         return
 
     try:
-        # Хешируем информацию
+        # Хешуємо інформацію
         hashed_info = hash_info(computer_info)
-        print(f"Информация захеширована: {hashed_info}")
+        print(f"Інформацію захешовано: {hashed_info}")
     except Exception as e:
-        print(f"Ошибка хеширования информации: {e}")
+        print(f"Помилка хешування інформації: {e}")
         return
 
     try:
-        # Генерируем ключи
+        # Генеруємо ключі
         private_key, public_key = generate_keys()
-        print("Ключи успешно сгенерированы.")
+        print("Ключі успішно згенеровані.")
     except Exception as e:
-        print(f"Ошибка генерации ключей: {e}")
+        print(f"Помилка генерації ключів: {e}")
         return
 
     try:
-        # Подписываем информацию
+        # Підписуємо інформацію
         signature = sign_info(hashed_info, private_key)
-        print(f"Информация успешно подписана: {signature}")
+        print(f"Інформацію успішно підписано: {signature}")
     except Exception as e:
-        print(f"Ошибка подписания информации: {e}")
+        print(f"Помилка підписання інформації: {e}")
         return
 
     try:
-        # Сохраняем публичный ключ для использования в защищаемой программе
+        # Зберігаємо публічний ключ для використання в захищеній програмі
         public_key_pem = public_key.public_bytes(
             encoding=serialization.Encoding.PEM,
             format=serialization.PublicFormat.SubjectPublicKeyInfo
         )
         with open(os.path.join(install_path, 'public_key.pem'), 'wb') as f:
             f.write(public_key_pem)
-        print("Публичный ключ успешно сохранен.")
+        print("Публічний ключ успішно збережено.")
     except Exception as e:
-        print(f"Ошибка сохранения публичного ключа: {e}")
+        print(f"Помилка збереження публічного ключа: {e}")
         return
 
     try:
-        # Запрашиваем парольную фразу и сохраняем её в реестр
-        passphrase = input("Введите парольную фразу для шифрования файла с учетными данными: ")
+        # Запитуємо парольну фразу та зберігаємо її в реєстрі
+        passphrase = input("Введіть парольну фразу для шифрування файлу з обліковими даними: ")
         encrypted_passphrase = encrypt_data(passphrase.encode(), 'some_master_key')
-        print(f"Парольная фраза успешно зашифрована: {encrypted_passphrase}")
+        print(f"Парольну фразу успішно зашифровано: {encrypted_passphrase}")
     except Exception as e:
-        print(f"Ошибка шифрования парольной фразы: {e}")
+        print(f"Помилка шифрування парольної фрази: {e}")
         return
 
     try:
-        # Записываем подпись и зашифрованную парольную фразу в реестр
+        # Записуємо підпис та зашифровану парольну фразу до реєстру
         write_to_registry(signature, encrypted_passphrase)
     except Exception as e:
-        print(f"Ошибка записи в реестр: {e}")
+        print(f"Помилка запису до реєстру: {e}")
 
-    print("Установка завершена.")
+    print("Встановлення завершено.")
 
 if __name__ == "__main__":
     main()
